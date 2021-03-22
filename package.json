@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "bin": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "pkg . --out-path ./build",
+    "build-win": "yarn build -t node14-win-x64",
+    "build-linux": "yarn build -t node14-linux-x64"
   },
   "author": "",
   "license": "ISC",
