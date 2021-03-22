@@ -1,0 +1,11 @@
+{
+	"ipfs": "http://localhost:5001/api/v0",
+	"pins": [
+		{
+			"ipns": "ipfs.io"
+		},
+		{
+			"ipns": "webui.ipfs.io"
+		}
+	]
+}
