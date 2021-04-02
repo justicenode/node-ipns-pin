@@ -13,12 +13,16 @@ let cfg = {
 try {
     cfg = {...cfg, ...(JSON.parse(fs.readFileSync(configFile, 'utf8')))}
 } catch (e) {
-    console.log("Warning: no config.json file found. using defaults")
+    console.log("[INFO] no config.json file found. using defaults")
 }
 
 
 // Connect to ipfs node
 const ipfs = new ipfsApi(cfg.ipfs)
+
+const printVersion = () => {
+	console.log("ipns-pin version 1.1.0")
+}
 
 // Helper function to update pins
 const updatePin = (pin) => new Promise(async (resolve, reject) => {
@@ -27,23 +31,31 @@ const updatePin = (pin) => new Promise(async (resolve, reject) => {
     for await (const name of ipfs.name.resolve(`/ipns/${pin.ipns}`)) {
       last = name
     }
-    const cid = last.substr(6)
+    const cid = last.substr(6).trim('/')
 
     // Check if pin has changed or was added
     if(!pin.current || pin.current != cid) {
         // Pin new cid
-        await ipfs.pin.add(cid, {
+        ipfs.pin.add(cid, {
             recursive: true,
-        })
-
-        // Unpin old cid if necessary
-        if (pin.current) {
-            await ipfs.pin.rm(pin.current)
-        }
-
-        resolve({...pin, current: cid})
+        }).then(() => {
+					const newPin = {...pin, current: cid}
+				  // Unpin old cid if necessary
+	        if (pin.current) {
+	            ipfs.pin.rm(pin.current).catch(e => {
+								console.log('[WARNING] failed to remove old pin')
+							}).finally(() => {
+								resolve(newPin)
+							})
+	        } else {
+						resolve(newPin)
+					}
+				}).catch(e => {
+					console.log("[ERROR] failed to update pin: ", e)
+					resolve(pin)
+				})
     } else {
-        //TODO: verify pin?
+        //TODO: verify pin! Currently not implemented in js-ipfs
         resolve(pin)
     }
 })
@@ -53,7 +65,11 @@ const addPin = (ipns) => {
     if (add)
         console.log("Error: pin already exists")
     else {
-        writeConfig({...cfg, pins: [...cfg.pins, {ipns: ipns}]})
+				updatePin({ipns: ipns}).then(newPin => {
+        	writeConfig({...cfg, pins: [...cfg.pins, newPin]})
+				}).catch(e => {
+					console.log("Error: failed to pin")
+				})
     }
 }
 
@@ -80,8 +96,18 @@ const writeConfig = (cfg) => {
     console.log('Done!')
 }
 
+const printUpdated = (old, current) => {
+	for (const pin of old) {
+		const newPin = current.find(a => a.ipns == pin.ipns)
+		if (newPin.current != pin.current) {
+			console.log(`[${pin.ipns}] ${pin.current} -> ${newPin.current}`)
+		}
+	}
+}
+
 const printHelp = () => {
     console.log("Usage:")
+    console.log("ipns-pin version              - Prints current version")
     console.log("ipns-pin update               - Updates pins")
     console.log("ipns-pin ls                   - lists all pins")
     console.log("ipns-pin add {nodeid/dnslink} - add new ipns pin")
@@ -95,7 +121,9 @@ if (argv.length == 1) {
         if (cfg.pins) {
             console.log('Updating pins...')
             Promise.all(cfg.pins.map(updatePin)).then(r => {
-                console.log('Pins updated', r)
+                console.log('Pins updated!')
+								printUpdated(cfg.pins, r)
+
                 // Merge updated pins with existing config
                 const newCfg = {...cfg, pins: r}
                 writeConfig(newCfg)
@@ -106,7 +134,9 @@ if (argv.length == 1) {
     }
    else if (argv[0] == "ls") {
         listPins()
-   } else printHelp()
+   } else if (argv[0] == "version")
+	 	printVersion()
+	 else printHelp()
 } else if (argv.length == 2) {
     if (argv[0] == "add") {
         addPin(argv[1])
@@ -116,4 +146,3 @@ if (argv.length == 1) {
         writeConfig({...cfg, ipfs: argv[1]})
     } else printHelp()
 } else printHelp()
-

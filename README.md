@@ -11,6 +11,7 @@ Note: *You'll probably want to set up a cron job for the update command*
 
 |Command|Description
 |---|---
+|ipns-pin version|Prints current version
 |ipns-pin update|Updates pins
 |ipns-pin ls|lists all pins
 |ipns-pin add {nodeid/dnslink}|add new ipns pin
