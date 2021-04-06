@@ -48,7 +48,7 @@ const addPin = ({ipns}) => {
     console.log("Error: pin already exists")
   else {
 		updatePin({ipns: ipns}).then(newPin => {
-  		writeConfig({...cfg, pins: [...cfg.pins, newPin]})
+  		utils.writeConfig(configFile, {...cfg, pins: [...cfg.pins, newPin]})
 		}).catch(e => {
 			console.log("Error: failed to pin")
 		})
@@ -60,22 +60,16 @@ const rmPin = async (ipns) => {
     if (rm) {
         if (rm.current)
             await ipfs.pin.rm(rm.current)
-        writeConfig({...cfg, pins: cfg.pins.filter(p => p.ipns != ipns)})
+        utils.writeConfig(configFile, {...cfg, pins: cfg.pins.filter(p => p.ipns != ipns)})
     } else {
         console.log("Error: pin not found")
     }
 }
 
-const listPins = () => {
-    for (const pin of cfg.pins) {
-        console.log(`${pin.ipns} ${pin.current}`)
-    }
-}
-
-const writeConfig = (cfg) => {
-    console.log('Writing config...')
-    fs.writeFileSync(configFile, JSON.stringify(cfg, null, '\t'))
-    console.log('Done!')
+const listPins = (argv) => {
+	const cfg = utils.readConfig(configFile)
+  for (const pin of cfg.pins)
+  	console.log(argv.v ? `${pin.ipns} ${pin.current}` : pin.ipns)
 }
 
 const printUpdated = (old, current) => {
@@ -109,6 +103,11 @@ const setIpfsApi = ({ipfsApi}) => {
 	utils.writeConfig(configFile, {...cfg, ipfs: ipfsApi})
 }
 
+const ipnsBuilder = (yargs) =>  yargs.positional('ipns', {
+  describe: 'Ipns to pin. Can be domain name or node id.',
+  type: 'string',
+})
+
 yargs(process.argv.slice(2))
 	.version(version)
 	.command({
@@ -121,22 +120,33 @@ yargs(process.argv.slice(2))
 		command: 'list',
 		aliases: ['ls'],
 		desc: 'lists all pins',
+		builder: (yargs) => yargs.option('v', {
+			alias: 'verbose',
+			describe: 'also prints the associated hash',
+			type: 'boolean',
+		}),
 		handler: listPins,
 	})
 	.command({
 		command: 'add <ipns>',
+		builder: ipnsBuilder,
 		desc: 'adds new ipns pin',
 		handler: addPin,
 	})
 	.command({
 		command: 'remove <ipns>',
 		aliases: ['rm'],
+		builder: ipnsBuilder,
 		desc: 'removes a ipns pin',
 		handler: rmPin,
 	})
 	.command({
 		command: 'ipfs <ipfsApi>',
 		desc: 'set which ipfs node to use',
+		builder: (yargs) =>  yargs.positional('ipfsApi', {
+		  describe: 'ipfs api url. see https://www.npmjs.com/package/ipfs-http-client#ipfshttpclientoptions',
+		  type: 'string',
+		}),
 		handler: setIpfsApi,
 	})
 	.demandCommand()
