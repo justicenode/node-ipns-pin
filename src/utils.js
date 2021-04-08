@@ -9,7 +9,7 @@ const readConfig = (configFile) => {
 
 	// Load config file
 	try {
-	    cfg = {...cfg, ...(JSON.parse(fs.readFileSync(configFile, 'utf8')))}
+	  cfg = {...cfg, ...(JSON.parse(fs.readFileSync(configFile, 'utf8')))}
 	} catch (e) {
 	    console.log("[INFO] no config.json file found. using defaults")
 	}

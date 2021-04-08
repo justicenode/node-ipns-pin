@@ -1,9 +1,15 @@
 const yargs = require('yargs/yargs')
+const log4js = require('log4js')
 const utils = require('./utils')
+const PinManager = require('./PinManager')
 
 const configFile = process.env.CONFIG_FILE || './config.json'
-const version = '1.2.0'
+const version = '1.2.0-dev'
 const argv = process.argv.slice(2)
+
+const logger = log4js.getLogger()
+logger.level = 'info'
+const pinManager = new PinManager(configFile, logger)
 
 // Helper function to update pins
 const updatePin = (pin) => new Promise(async (resolve, reject) => {
@@ -41,37 +47,6 @@ const updatePin = (pin) => new Promise(async (resolve, reject) => {
     }
 })
 
-const addPin = ({ipns}) => {
-	const {cfg, ipfs} = utils.loadAll(configFile)
-  const add = cfg.pins.find(p => p.ipns == ipns)
-  if (add)
-    console.log("Error: pin already exists")
-  else {
-		updatePin({ipns: ipns}).then(newPin => {
-  		utils.writeConfig(configFile, {...cfg, pins: [...cfg.pins, newPin]})
-		}).catch(e => {
-			console.log("Error: failed to pin")
-		})
-  }
-}
-
-const rmPin = async (ipns) => {
-    const rm = cfg.pins.find(p => p.ipns == ipns)
-    if (rm) {
-        if (rm.current)
-            await ipfs.pin.rm(rm.current)
-        utils.writeConfig(configFile, {...cfg, pins: cfg.pins.filter(p => p.ipns != ipns)})
-    } else {
-        console.log("Error: pin not found")
-    }
-}
-
-const listPins = (argv) => {
-	const cfg = utils.readConfig(configFile)
-  for (const pin of cfg.pins)
-  	console.log(argv.v ? `${pin.ipns} ${pin.current}` : pin.ipns)
-}
-
 const printUpdated = (old, current) => {
 	for (const pin of old) {
 		const newPin = current.find(a => a.ipns == pin.ipns)
@@ -98,11 +73,6 @@ const updatePins = () => {
 	}
 }
 
-const setIpfsApi = ({ipfsApi}) => {
-	const cfg = utils.readConfig(configFile)
-	utils.writeConfig(configFile, {...cfg, ipfs: ipfsApi})
-}
-
 const ipnsBuilder = (yargs) =>  yargs.positional('ipns', {
   describe: 'Ipns to pin. Can be domain name or node id.',
   type: 'string',
@@ -125,20 +95,20 @@ yargs(process.argv.slice(2))
 			describe: 'also prints the associated hash',
 			type: 'boolean',
 		}),
-		handler: listPins,
+		handler: argv => pinManager.listPins(argv),
 	})
 	.command({
 		command: 'add <ipns>',
 		builder: ipnsBuilder,
 		desc: 'adds new ipns pin',
-		handler: addPin,
+		handler: argv => pinManager.addPin(argv),
 	})
 	.command({
 		command: 'remove <ipns>',
 		aliases: ['rm'],
 		builder: ipnsBuilder,
 		desc: 'removes a ipns pin',
-		handler: rmPin,
+		handler: argv => pinManager.rmPin(argv),
 	})
 	.command({
 		command: 'ipfs <ipfsApi>',
@@ -147,7 +117,7 @@ yargs(process.argv.slice(2))
 		  describe: 'ipfs api url. see https://www.npmjs.com/package/ipfs-http-client#ipfshttpclientoptions',
 		  type: 'string',
 		}),
-		handler: setIpfsApi,
+		handler: argv => pinManager.setIpfsApi(argv),
 	})
 	.demandCommand()
 	.help()
